@@ -219,7 +219,7 @@ ffi_closure_unix64:
 	movq    %rcx, 24(%rsp)
 	movq    %r8, 32(%rsp)
 	movq    %r9, 40(%rsp)
-	jc      .Lsave_sse
+	jmp     .Lsave_sse    /* Unconditionally load SSE for varargs */
 .Lret_from_save_sse:
 
 	movq	%r10, %rdi

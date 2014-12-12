@@ -209,6 +209,7 @@ static jfieldID FID_Float_value;
 static jfieldID FID_Double_value;
 
 static jfieldID FID_Pointer_peer;
+static jfieldID FID_Pointer_cif;
 static jfieldID FID_Structure_memory;
 static jfieldID FID_Structure_typeInfo;
 static jfieldID FID_IntegerType_value;
@@ -876,11 +877,11 @@ newJavaString(JNIEnv *env, const char *ptr, const char* charset)
 }
 
 jobject
-newJavaPointer(JNIEnv *env, void *p)
+newJavaPointer(JNIEnv *env, void *p, ffi_cif *cif)
 {
     jobject obj = NULL;
     if (p != NULL) {
-      obj = (*env)->NewObject(env, classPointer, MID_Pointer_init, A2L(p));
+      obj = (*env)->NewObject(env, classPointer, MID_Pointer_init, A2L(p), cif == NULL ? 0 : A2L(cif));
     }
     return obj;
 }
@@ -902,7 +903,7 @@ jobject
 newJavaCallback(JNIEnv* env, void* fptr, jclass type)
 {
   if (fptr != NULL) {
-    jobject ptr = newJavaPointer(env, fptr);
+    jobject ptr = newJavaPointer(env, fptr, NULL);
     return (*env)->CallStaticObjectMethod(env, classCallbackReference,
                                           MID_CallbackReference_getCallback,
                                           type, ptr, JNI_TRUE);
@@ -1140,7 +1141,7 @@ toNativeTypeMapped(JNIEnv* env, jobject obj, void* valuep, size_t size, jobject 
 static void
 fromNativeTypeMapped(JNIEnv* env, jobject from_native, void* resp, ffi_type* type, jclass javaClass, void* result) {
   int jtype = get_jtype_from_ffi_type(type);
-  jobject value = new_object(env, (char)jtype, resp, JNI_TRUE);
+  jobject value = new_object(env, (char)jtype, resp, JNI_TRUE, NULL);
   if (!(*env)->ExceptionCheck(env)) {
     jobject obj = (*env)->CallStaticObjectMethod(env, classNative,
                                                  MID_Native_fromNativeTypeMapped,
@@ -1160,7 +1161,7 @@ fromNativeTypeMapped(JNIEnv* env, jobject from_native, void* resp, ffi_type* typ
 jobject
 fromNative(JNIEnv* env, jclass javaClass, ffi_type* type, void* resp, jboolean promote) {
   int jtype = get_jtype_from_ffi_type(type);
-  jobject value = new_object(env, (char)jtype, resp, promote);
+  jobject value = new_object(env, (char)jtype, resp, promote, NULL);
   if (!(*env)->ExceptionCheck(env)) {
     return (*env)->CallStaticObjectMethod(env, classNative,
                                           MID_Native_fromNative,
@@ -1520,12 +1521,12 @@ extract_value(JNIEnv* env, jobject value, void* resp, size_t size, jboolean prom
 
 /** Construct a new Java object from a native value.  */
 jobject
-new_object(JNIEnv* env, char jtype, void* valuep, jboolean promote) {
+new_object(JNIEnv* env, char jtype, void* valuep, jboolean promote, ffi_cif *cif) {
     switch(jtype) {
     case 's':
-      return newJavaPointer(env, valuep);
+      return newJavaPointer(env, valuep, cif);
     case '*':
-      return newJavaPointer(env, *(void**)valuep);
+      return newJavaPointer(env, *(void**)valuep, cif);
     case 'J':
       return (*env)->NewObject(env, classLong, MID_Long_init,
                                *(jlong *)valuep);
@@ -1697,7 +1698,7 @@ method_handler(ffi_cif* cif, void* volatile resp, void** argp, void *cdata) {
           int jtype = get_jtype_from_ffi_type(data->closure_cif.arg_types[i+2]);
           jobject obj = jtype == '*'
             ? *(void **)valuep
-            : new_object(env, (char)jtype, valuep, JNI_FALSE);
+            : new_object(env, (char)jtype, valuep, JNI_FALSE, cif);
           if (cif->arg_types[i+2]->size < data->cif.arg_types[i]->size) {
             args[i] = alloca(data->cif.arg_types[i]->size);
           }
@@ -1818,7 +1819,7 @@ method_handler(ffi_cif* cif, void* volatile resp, void** argp, void *cdata) {
     *(void **)oldresp = fromNative(env, data->closure_rclass, data->cif.rtype, resp, JNI_TRUE);
     break;
   case CVT_POINTER:
-    *(void **)resp = newJavaPointer(env, *(void **)resp);
+    *(void **)resp = newJavaPointer(env, *(void **)resp, cif);
     break;
   case CVT_STRING:
     *(void **)resp = newJavaString(env, *(void **)resp, data->encoding);
@@ -2659,13 +2660,17 @@ Java_com_sun_jna_Native_initIDs(JNIEnv *env, jclass cls) {
                 "Can't obtain class com.sun.jna.Pointer");
   }
   else if (!LOAD_MID(env, MID_Pointer_init, classPointer,
-                     "<init>", "(J)V")) {
+                     "<init>", "(JJ)V")) {
     throwByName(env, EUnsatisfiedLink,
                 "Can't obtain constructor for class com.sun.jna.Pointer");
   }
   else if (!LOAD_FID(env, FID_Pointer_peer, classPointer, "peer", "J")) {
     throwByName(env, EUnsatisfiedLink,
                 "Can't obtain peer field ID for class com.sun.jna.Pointer");
+  }
+  else if (!LOAD_FID(env, FID_Pointer_cif, classPointer, "cif", "J")) {
+    throwByName(env, EUnsatisfiedLink,
+                "Can't obtain libffi cif field ID for class com.sun.jna.Pointer");
   }
   else if (!(classNative = (*env)->NewWeakGlobalRef(env, cls))) {
     throwByName(env, EUnsatisfiedLink,
@@ -2843,7 +2848,7 @@ Java_com_sun_jna_Native_initIDs(JNIEnv *env, jclass cls) {
         throwByName(env, EUnsatisfiedLink, field);
         return;
       }
-      (*env)->SetStaticObjectField(env, cls, fid, newJavaPointer(env, types[i]));
+      (*env)->SetStaticObjectField(env, cls, fid, newJavaPointer(env, types[i], NULL));
     }
   }
 }
@@ -3354,6 +3359,87 @@ Java_com_sun_jna_Native_initialize_1ffi_1type(JNIEnv *env, jclass UNUSED(cls), j
 JNIEXPORT void JNICALL
 Java_com_sun_jna_Native_setDetachState(JNIEnv* env, jclass UNUSED(cls), jboolean d, jlong flag) {
   JNA_detach(env, d, L2A(flag));
+}
+
+/* libffi variadic closure functions */
+
+JNIEXPORT jbyte JNICALL
+Java_com_sun_jna_Native_ffi_1closure_1va_1sint8(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  return ffi_closure_va_sint8(L2A(cif));
+}
+
+JNIEXPORT jshort JNICALL
+Java_com_sun_jna_Native_ffi_1closure_1va_1sint16(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  return ffi_closure_va_sint16(L2A(cif));
+}
+
+JNIEXPORT jint JNICALL
+Java_com_sun_jna_Native_ffi_1closure_1va_1sint32(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  return ffi_closure_va_sint32(L2A(cif));
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_sun_jna_Native_ffi_1closure_1va_1sint64(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  return ffi_closure_va_sint64(L2A(cif));
+}
+
+JNIEXPORT jbyte JNICALL
+Java_com_sun_jna_Native_ffi_1closure_1va_1uint8(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  return ffi_closure_va_uint8(L2A(cif));
+}
+
+JNIEXPORT jchar JNICALL
+Java_com_sun_jna_Native_ffi_1closure_1va_1uint16(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  return ffi_closure_va_uint16(L2A(cif));
+}
+
+JNIEXPORT jint JNICALL
+Java_com_sun_jna_Native_ffi_1closure_1va_1uint32(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  return ffi_closure_va_uint32(L2A(cif));
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_sun_jna_Native_ffi_1closure_1va_1uint64(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  return ffi_closure_va_uint64(L2A(cif));
+}
+
+JNIEXPORT jfloat JNICALL
+Java_com_sun_jna_Native_ffi_1closure_1va_1float(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  return ffi_closure_va_float(L2A(cif));
+}
+
+JNIEXPORT jdouble JNICALL
+Java_com_sun_jna_Native_ffi_1closure_1va_1double(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  return ffi_closure_va_double(L2A(cif));
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_sun_jna_Native__1ffi_1closure_1va_1slong(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  return ffi_closure_va_slong(L2A(cif));
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_sun_jna_Native__1ffi_1closure_1va_1ulong(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  return ffi_closure_va_ulong(L2A(cif));
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_sun_jna_Native__1ffi_1closure_1va_1pointer(JNIEnv *env, jclass UNUSED(cls), jlong cif)
+{
+  void *result = ffi_closure_va_pointer(L2A(cif));
+  return A2L(result);
 }
 
 #ifdef __cplusplus

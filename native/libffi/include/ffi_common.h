@@ -64,10 +64,12 @@ void ffi_type_test(ffi_type *a, char *file, int line);
 #define FFI_ASSERT(x) ((x) ? (void)0 : ffi_assert(#x, __FILE__,__LINE__))
 #define FFI_ASSERT_AT(x, f, l) ((x) ? 0 : ffi_assert(#x, (f), (l)))
 #define FFI_ASSERT_VALID_TYPE(x) ffi_type_test (x, __FILE__, __LINE__)
+#define FFI_RUN_OK(x) ((x) == FFI_OK ? (void)0 : ffi_assert(#x, __FILE__,__LINE__))
 #else
 #define FFI_ASSERT(x)
 #define FFI_ASSERT_AT(x, f, l)
 #define FFI_ASSERT_VALID_TYPE(x)
+#define FFI_RUN_OK(x) ((x))
 #endif
 
 #define ALIGN(v, a)  (((((size_t) (v))-1) | ((a)-1))+1)

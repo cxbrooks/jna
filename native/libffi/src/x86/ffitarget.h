@@ -72,6 +72,27 @@ typedef signed long            ffi_sarg;
 #endif
 #endif
 
+#define FFI_CLOSURE_VA_LIST 1
+
+#if FFI_CLOSURE_VA_LIST
+#  if (defined (_WIN64) || defined (X86_WIN64)) || !defined (__x86_64__)
+typedef struct {
+  const char *stack;
+} ffi_closure_va_list;
+#  else
+#    if defined (__x86_64__) || defined (X86_64)
+typedef struct {
+  int gprcount;
+  int ssecount;
+  const char *stack;
+  struct register_args *reg_args;
+} ffi_closure_va_list;
+#    else 
+#      error "Shouldn't be here for x86 or AMD64"
+#    endif
+#  endif
+#endif
+
 typedef enum ffi_abi {
   FFI_FIRST_ABI = 0,
 

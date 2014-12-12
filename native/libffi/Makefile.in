@@ -149,7 +149,7 @@ LTLIBRARIES = $(noinst_LTLIBRARIES) $(toolexeclib_LTLIBRARIES)
 libffi_la_LIBADD =
 am__dirstamp = $(am__leading_dot)dirstamp
 am_libffi_la_OBJECTS = src/prep_cif.lo src/types.lo src/raw_api.lo \
-	src/java_raw_api.lo src/closures.lo
+	src/java_raw_api.lo src/closures.lo src/closures_va.lo
 @FFI_DEBUG_TRUE@am__objects_1 = src/debug.lo
 @MIPS_TRUE@am__objects_2 = src/mips/ffi.lo src/mips/o32.lo \
 @MIPS_TRUE@	src/mips/n32.lo
@@ -217,7 +217,7 @@ libffi_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(libffi_la_LDFLAGS) $(LDFLAGS) -o $@
 libffi_convenience_la_LIBADD =
 am__objects_35 = src/prep_cif.lo src/types.lo src/raw_api.lo \
-	src/java_raw_api.lo src/closures.lo
+	src/java_raw_api.lo src/closures.lo src/closures_va.lo
 am_libffi_convenience_la_OBJECTS = $(am__objects_35)
 am__objects_36 = $(am__objects_1) $(am__objects_2) $(am__objects_3) \
 	$(am__objects_4) $(am__objects_5) $(am__objects_6) \
@@ -556,7 +556,8 @@ MAKEOVERRIDES =
 toolexeclib_LTLIBRARIES = libffi.la
 noinst_LTLIBRARIES = libffi_convenience.la
 libffi_la_SOURCES = src/prep_cif.c src/types.c \
-		src/raw_api.c src/java_raw_api.c src/closures.c
+		src/raw_api.c src/java_raw_api.c src/closures.c \
+		src/closures_va.c
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libffi.pc
@@ -690,6 +691,7 @@ src/types.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/raw_api.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/java_raw_api.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/closures.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/closures_va.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/debug.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/mips/$(am__dirstamp):
 	@$(MKDIR_P) src/mips
@@ -1017,6 +1019,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/closures.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/closures_va.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/debug.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/java_raw_api.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/prep_cif.Plo@am__quote@

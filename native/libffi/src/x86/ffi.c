@@ -505,71 +505,95 @@ ffi_closure_SYSV_inner (ffi_closure *closure, void **respp, void *args)
 }
 #endif /* !X86_WIN64 */
 
+/* This definition is shared by calls for fixed and variadic arguments.
+ * You should only check the ABI for variadic arguments.
+ */
+static ffi_status
+ffi_closure_va_arg_internal(ffi_cif *cif, ffi_type *va_type, void **va_value,
+                            int checkABI)
+{
+  size_t z;
+
+  /* The callee cleans up the stack in Microsoft calling conventions
+   * stdcall, thiscall and fastcall.  You cannot use vararg functions
+   * with these calling conventions.
+   * Reference: http://msdn.microsoft.com/en-us/library/zxk0tw93.aspx
+   * and: http://msdn.microsoft.com/en-us/library/984x0h58.aspx
+   */
+  if (checkABI
+      && (cif->abi == FFI_STDCALL || cif->abi == FFI_THISCALL
+          || cif->abi == FFI_FASTCALL)) {
+    return FFI_BAD_ABI;
+  }
+
+  /* Align if necessary */
+  if ((sizeof(void*) - 1) & (size_t) cif->va.stack) {
+    cif->va.stack = (char *) ALIGN(cif->va.stack, sizeof(void*));
+  }
+
+#ifdef X86_WIN64
+  if (va_type->size > sizeof(ffi_arg)
+      || (va_type->type == FFI_TYPE_STRUCT
+          && (va_type->size != 1 && va_type->size != 2
+              && va_type->size != 4 && va_type->size != 8)))
+    {
+      z = sizeof(void *);
+      *va_value = *(void **) cif->va.stack;
+    }
+  else
+#endif
+    {
+      z = va_type->size;
+      /* because we're little endian, this is what it turns into.   */
+      *va_value = (void*) cif->va.stack;
+    }
+          
+#ifdef X86_WIN64
+  cif->va.stack += (z + sizeof(void*) - 1) & ~(sizeof(void*) - 1);
+#else
+  cif->va.stack += z;
+#endif
+
+  return FFI_OK;
+}
+
+ffi_status
+ffi_closure_va_arg(ffi_cif *cif, ffi_type *va_type, void **va_value)
+{
+  return ffi_closure_va_arg_internal(cif, va_type, va_value, 1);
+}
+
 static void
 ffi_prep_incoming_args_SYSV(char *stack, void **rvalue, void **avalue,
                             ffi_cif *cif)
 {
   register unsigned int i;
-  register void **p_argv;
-  register char *argp;
-  register ffi_type **p_arg;
 
-  argp = stack;
+  cif->va.stack = stack;
 
+  /* Setup the return value */
 #ifdef X86_WIN64
   if (cif->rtype->size > sizeof(ffi_arg)
       || (cif->flags == FFI_TYPE_STRUCT
           && (cif->rtype->size != 1 && cif->rtype->size != 2
               && cif->rtype->size != 4 && cif->rtype->size != 8))) {
-    *rvalue = *(void **) argp;
-    argp += sizeof(void *);
+    *rvalue = *(void **) cif->va.stack;
+    cif->va.stack += sizeof(void *);
   }
 #else
   if ( cif->flags == FFI_TYPE_STRUCT
        || cif->flags == FFI_TYPE_MS_STRUCT ) {
-    *rvalue = *(void **) argp;
-    argp += sizeof(void *);
+    *rvalue = *(void **) cif->va.stack;
+    cif->va.stack += sizeof(void *);
   }
 #endif
 
-  p_argv = avalue;
+  /* Setup all fixed arguments. */
+  for (i = 0; i < cif->nargs; i++) {
+    ffi_closure_va_arg_internal(cif, cif->arg_types[i], &avalue[i], 0);
+  }
 
-  for (i = cif->nargs, p_arg = cif->arg_types; (i != 0); i--, p_arg++)
-    {
-      size_t z;
-
-      /* Align if necessary */
-      if ((sizeof(void*) - 1) & (size_t) argp) {
-        argp = (char *) ALIGN(argp, sizeof(void*));
-      }
-
-#ifdef X86_WIN64
-      if ((*p_arg)->size > sizeof(ffi_arg)
-          || ((*p_arg)->type == FFI_TYPE_STRUCT
-              && ((*p_arg)->size != 1 && (*p_arg)->size != 2
-                  && (*p_arg)->size != 4 && (*p_arg)->size != 8)))
-        {
-          z = sizeof(void *);
-          *p_argv = *(void **)argp;
-        }
-      else
-#endif
-        {
-          z = (*p_arg)->size;
-          
-          /* because we're little endian, this is what it turns into.   */
-          
-          *p_argv = (void*) argp;
-        }
-          
-      p_argv++;
-#ifdef X86_WIN64
-      argp += (z + sizeof(void*) - 1) & ~(sizeof(void*) - 1);
-#else
-      argp += z;
-#endif
-    }
-  
+  /* In the closure, you can use ffi_closure_va_arg() to access varargs */
   return;
 }
 

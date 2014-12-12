@@ -1603,6 +1603,43 @@ public final class Native implements Version {
     public static native long ffi_prep_closure(long cif, ffi_callback cb);
     public static native void ffi_free_closure(long closure);
 
+    /** Expose FFI closure variadic calls.  Exclude variable size aliases */
+    public static native byte ffi_closure_va_sint8(long cif);
+    public static native short ffi_closure_va_sint16(long cif);
+    public static native int ffi_closure_va_sint32(long cif);
+    public static native long ffi_closure_va_sint64(long cif);
+    public static native byte ffi_closure_va_uint8(long cif);
+    public static native char ffi_closure_va_uint16(long cif);
+    public static native int ffi_closure_va_uint32(long cif);
+    public static native long ffi_closure_va_uint64(long cif);
+    public static native float ffi_closure_va_float(long cif);
+    public static native double ffi_closure_va_double(long cif);
+
+    // These are private because we expose the version with objects
+    private static native long _ffi_closure_va_slong(long cif);
+    private static native long _ffi_closure_va_ulong(long cif);
+    private static native long _ffi_closure_va_pointer(long cif);
+
+    public static NativeLong ffi_closure_va_slong(long cif) {
+        return new NativeLong(_ffi_closure_va_slong(cif));
+    }
+    public static NativeLong ffi_closure_va_ulong(long cif) {
+        return new NativeLong(_ffi_closure_va_ulong(cif));
+    }
+    public static Pointer ffi_closure_va_pointer(long cif) {
+        long peer = _ffi_closure_va_pointer(cif);
+        return peer == 0 ? null : new Pointer(peer, cif);
+    }
+
+/* These may not work if the size doesn't match Java's
+    public static native byte ffi_closure_va_schar(long cif);
+    public static native short ffi_closure_va_sshort(long cif);
+    public static native int ffi_closure_va_sint(long cif);
+    public static native byte ffi_closure_va_uchar(long cif);
+    public static native short ffi_closure_va_ushort(long cif);
+    public static native int ffi_closure_va_uint(long cif);
+*/
+
     /** Returns the size (calculated by libffi) of the given type. */
     static native int initialize_ffi_type(long type_info);
 

@@ -564,31 +564,98 @@ ffi_prep_closure_loc (ffi_closure* closure,
   return FFI_OK;
 }
 
+ffi_status
+ffi_closure_va_arg(ffi_cif *cif, ffi_type *va_type, void **va_value)
+{
+  enum x86_64_reg_class classes[MAX_CLASSES];
+  int n;
+  int ngpr = 0;
+  int nsse = 0;
+
+  n = examine_argument(va_type, classes, 0, &ngpr, &nsse);
+  if (n == 0
+      || cif->va.gprcount + ngpr > MAX_GPR_REGS
+      || cif->va.ssecount + nsse > MAX_SSE_REGS)
+    {
+      long align = va_type->alignment;
+
+      /* Stack arguments are *always* at least 8 byte aligned.  */
+      if (align < 8)
+        align = 8;
+
+      /* Pass this argument in memory.  */
+      cif->va.stack = (void *) ALIGN (cif->va.stack, align);
+      *va_value = cif->va.stack;
+      cif->va.stack += va_type->size;
+    }
+  /* If the argument is in a single register, or two consecutive
+     integer registers, then we can use that address directly.  */
+  else if (n == 1
+           || (n == 2 && !(SSE_CLASS_P (classes[0])
+                           || SSE_CLASS_P (classes[1]))))
+    {
+      /* The argument is in a single register.  */
+      if (SSE_CLASS_P (classes[0]))
+        {
+          *va_value = &cif->va.reg_args->sse[cif->va.ssecount];
+          cif->va.ssecount += n;
+        }
+      else
+        {
+          *va_value = &cif->va.reg_args->gpr[cif->va.gprcount];
+          cif->va.gprcount += n;
+        }
+    }
+  /* Otherwise, allocate space to make them consecutive.  */
+  else
+    {
+      char *a = alloca (16);
+      int j;
+      
+      *va_value = a;
+      for (j = 0; j < n; j++, a += 8)
+        {
+          if (SSE_CLASS_P (classes[j]))
+            memcpy (a, &cif->va.reg_args->sse[cif->va.ssecount++], 8);
+          else
+            memcpy (a, &cif->va.reg_args->gpr[cif->va.gprcount++], 8);
+        }
+    }
+
+  return FFI_OK;
+}
+
 int
 ffi_closure_unix64_inner(ffi_closure *closure, void *rvalue,
 			 struct register_args *reg_args, char *argp)
 {
   ffi_cif *cif;
   void **avalue;
-  ffi_type **arg_types;
-  long i, avn;
-  int gprcount, ssecount, ngpr, nsse;
+  long i;
   int ret;
 
   cif = closure->cif;
   avalue = alloca(cif->nargs * sizeof(void *));
-  gprcount = ssecount = 0;
 
+  /* Setup the va */
+  cif->va.stack = argp;
+  cif->va.gprcount = 0;
+  cif->va.ssecount = 0;
+  cif->va.reg_args = reg_args;
+
+  /* Setup the return value */
   ret = cif->rtype->type;
   if (ret != FFI_TYPE_VOID)
     {
       enum x86_64_reg_class classes[MAX_CLASSES];
+      int ngpr = 0;
+      int nsse = 0;
       int n = examine_argument (cif->rtype, classes, 1, &ngpr, &nsse);
       if (n == 0)
 	{
 	  /* The return value goes in memory.  Arrange for the closure
 	     return value to go directly back to the original caller.  */
-	  rvalue = (void *) (unsigned long) reg_args->gpr[gprcount++];
+	  rvalue = (void *) (unsigned long) cif->va.reg_args->gpr[cif->va.gprcount++];
 	  /* We don't have to do anything in asm for the return.  */
 	  ret = FFI_TYPE_VOID;
 	}
@@ -604,65 +671,11 @@ ffi_closure_unix64_inner(ffi_closure *closure, void *rvalue,
 	}
     }
 
-  avn = cif->nargs;
-  arg_types = cif->arg_types;
+  /* Setup all fixed arguments */
+  for (i = 0; i < cif->nargs; ++i) {
+    ffi_closure_va_arg(cif, cif->arg_types[i], &avalue[i]);
+  }
   
-  for (i = 0; i < avn; ++i)
-    {
-      enum x86_64_reg_class classes[MAX_CLASSES];
-      int n;
-
-      n = examine_argument (arg_types[i], classes, 0, &ngpr, &nsse);
-      if (n == 0
-	  || gprcount + ngpr > MAX_GPR_REGS
-	  || ssecount + nsse > MAX_SSE_REGS)
-	{
-	  long align = arg_types[i]->alignment;
-
-	  /* Stack arguments are *always* at least 8 byte aligned.  */
-	  if (align < 8)
-	    align = 8;
-
-	  /* Pass this argument in memory.  */
-	  argp = (void *) ALIGN (argp, align);
-	  avalue[i] = argp;
-	  argp += arg_types[i]->size;
-	}
-      /* If the argument is in a single register, or two consecutive
-	 integer registers, then we can use that address directly.  */
-      else if (n == 1
-	       || (n == 2 && !(SSE_CLASS_P (classes[0])
-			       || SSE_CLASS_P (classes[1]))))
-	{
-	  /* The argument is in a single register.  */
-	  if (SSE_CLASS_P (classes[0]))
-	    {
-	      avalue[i] = &reg_args->sse[ssecount];
-	      ssecount += n;
-	    }
-	  else
-	    {
-	      avalue[i] = &reg_args->gpr[gprcount];
-	      gprcount += n;
-	    }
-	}
-      /* Otherwise, allocate space to make them consecutive.  */
-      else
-	{
-	  char *a = alloca (16);
-	  int j;
-
-	  avalue[i] = a;
-	  for (j = 0; j < n; j++, a += 8)
-	    {
-	      if (SSE_CLASS_P (classes[j]))
-		memcpy (a, &reg_args->sse[ssecount++], 8);
-	      else
-		memcpy (a, &reg_args->gpr[gprcount++], 8);
-	    }
-	}
-    }
-
   /* Invoke the closure.  */
   closure->fun (cif, rvalue, avalue, closure->user_data);
 

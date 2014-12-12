@@ -63,7 +63,12 @@ public class Pointer {
      */
     protected long peer;
 
-    /** Derived class must assign peer pointer value. */
+    /** Pointer value of the real native ffi_cif pointer.  Use long to be 64-bit safe.
+     * Should be used sparingly for variadic functions.
+     */
+    protected long cif = 0;
+
+    /** Derived class must assign peer and optionally cif pointer value. */
     Pointer() { }
     
     /** Create from native pointer.  Don't use this unless you know what
@@ -71,6 +76,14 @@ public class Pointer {
      */
     public Pointer(long peer) {
         this.peer = peer;
+    }
+
+    /** Create from native pointer.  Don't use this unless you know what
+     * you're doing.
+     */
+    public Pointer(long peer, long cif) {
+        this.peer = peer;
+        this.cif = cif;
     }
 
     /** Provide a view of this memory using the given offset to calculate a new base address. */
@@ -83,7 +96,7 @@ public class Pointer {
      */
     public Pointer share(long offset, long sz) {
         if (offset == 0) return this;
-        return new Pointer(peer + offset);
+        return new Pointer(peer + offset, cif);
     }
 
     /** Zero memory for the given number of bytes. */
@@ -103,6 +116,7 @@ public class Pointer {
     public boolean equals(Object o) {
         if (o == this) return true;
         if (o == null) return false;
+        // XXX not checking cif
         return o instanceof Pointer && ((Pointer)o).peer == peer;
     }
 
@@ -1301,6 +1315,11 @@ v     * @param wide whether to convert from a wide or standard C string
     /** Set the native peer value.  Use with caution. */
     public static void nativeValue(Pointer p, long value) {
         p.peer = value;
+    }
+
+    /** Read the native peer value.  Use with caution. */
+    public static long nativeCif(Pointer p) {
+        return p == null ? 0 : p.cif;
     }
 
     /** Pointer which disallows all read/write access. */

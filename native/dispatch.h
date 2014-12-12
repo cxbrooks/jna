@@ -186,13 +186,13 @@ extern callback* create_callback(JNIEnv*, jobject, jobject,
                                  callconv_t, jint, jstring);
 extern void free_callback(JNIEnv*, callback*);
 extern void extract_value(JNIEnv*, jobject, void*, size_t, jboolean);
-extern jobject new_object(JNIEnv*, char, void*, jboolean);
+extern jobject new_object(JNIEnv*, char, void*, jboolean, ffi_cif *cif);
 extern jboolean is_protected();
 extern int get_conversion_flag(JNIEnv*, jclass);
 extern jboolean ffi_error(JNIEnv*,const char*,ffi_status);
 
 extern const char* newCStringUTF8(JNIEnv*, jstring);
-extern jobject newJavaPointer(JNIEnv*, void*);
+extern jobject newJavaPointer(JNIEnv*, void*, ffi_cif*);
 extern jstring newJavaString(JNIEnv*, const char*, const char*);
 extern jobject newJavaWString(JNIEnv*, const wchar_t*);
 extern jobject newJavaStructure(JNIEnv*, void*, jclass);

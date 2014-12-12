@@ -379,7 +379,7 @@ callback_invoke(JNIEnv* env, callback *cb, ffi_cif* cif, void *resp, void **cbar
 	  *((void **)args[i+3]) = fromNative(env, cb->arg_classes[i], cif->arg_types[i], cbargs[i], JNI_FALSE);
           break;
         case CVT_POINTER:
-          *((void **)args[i+3]) = newJavaPointer(env, *(void **)cbargs[i]);
+          *((void **)args[i+3]) = newJavaPointer(env, *(void **)cbargs[i], cif);
           break;
         case CVT_STRING:
           *((void **)args[i+3]) = newJavaString(env, *(void **)cbargs[i], cb->encoding);
@@ -476,7 +476,7 @@ callback_invoke(JNIEnv* env, callback *cb, ffi_cif* cif, void *resp, void **cbar
     unsigned int i;
 
     for (i=0;i < cif->nargs;i++) {
-      jobject arg = new_object(env, cb->arg_jtypes[i], cbargs[i], JNI_FALSE);
+      jobject arg = new_object(env, cb->arg_jtypes[i], cbargs[i], JNI_FALSE, cif);
       (*env)->SetObjectArrayElement(env, array, i, arg);
     }
     result = (*env)->CallObjectMethod(env, self, cb->methodID, array);

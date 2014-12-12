@@ -75,6 +75,11 @@ extern "C" {
 #include <stddef.h>
 #include <limits.h>
 
+/* C99 int data types */
+#if __STDC_VERSION__ >= 199901L
+#  include <inttypes.h>
+#endif
+
 /* LONG_LONG_MAX is not always defined (not if STRICT_ANSI, for example).
    But we can find it either under the correct ANSI name, or under GNU
    C's internal name.  */
@@ -219,7 +224,17 @@ typedef struct {
 #ifdef FFI_EXTRA_CIF_FIELDS
   FFI_EXTRA_CIF_FIELDS;
 #endif
+#ifdef FFI_CLOSURE_VA_LIST
+  ffi_closure_va_list va;
+#endif
 } ffi_cif;
+
+/* Used internally and used to access variadic arguments in closures */
+#ifdef FFI_CLOSURE_VA_LIST
+ffi_status ffi_closure_va_arg(ffi_cif *cif,
+                      ffi_type *type,
+                      void **va_value);
+#endif
 
 /* Used internally, but overridden by some architectures */
 ffi_status ffi_prep_cif_core(ffi_cif *cif,
@@ -435,6 +450,42 @@ void ffi_call(ffi_cif *cif,
 
 /* Useful for eliminating compiler warnings */
 #define FFI_FN(f) ((void (*)(void))f)
+
+/* ---- Definitions for variadic closures -------------------------------- */
+
+#ifdef FFI_CLOSURE_VA_LIST
+
+#  if __STDC_VERSION__ >= 199901L
+/* C99 data types */
+int8_t ffi_closure_va_sint8 (ffi_cif *cif);
+int16_t ffi_closure_va_sint16 (ffi_cif *cif);
+int32_t ffi_closure_va_sint32 (ffi_cif *cif);
+int64_t ffi_closure_va_sint64 (ffi_cif *cif);
+uint8_t ffi_closure_va_uint8 (ffi_cif *cif);
+uint16_t ffi_closure_va_uint16 (ffi_cif *cif);
+uint32_t ffi_closure_va_uint32 (ffi_cif *cif);
+uint64_t ffi_closure_va_uint64 (ffi_cif *cif);
+#  endif /* __STDC_VERSION__ >= 199901L */
+
+#  ifndef LIBFFI_HIDE_BASIC_TYPES
+signed char ffi_closure_va_schar (ffi_cif *cif);
+short ffi_closure_va_sshort (ffi_cif *cif);
+int ffi_closure_va_sint (ffi_cif *cif);
+long ffi_closure_va_slong (ffi_cif *cif);
+unsigned char ffi_closure_va_uchar (ffi_cif *cif);
+unsigned short ffi_closure_va_ushort (ffi_cif *cif);
+unsigned int ffi_closure_va_uint (ffi_cif *cif);
+unsigned long ffi_closure_va_ulong (ffi_cif *cif);
+#  endif /* ! LIBFFI_HIDE_BASIC_TYPES */
+
+float ffi_closure_va_float (ffi_cif *cif);
+double ffi_closure_va_double (ffi_cif *cif);
+void *ffi_closure_va_pointer (ffi_cif *cif);
+
+#  if @HAVE_LONG_DOUBLE@
+long double ffi_closure_va_longdouble (ffi_cif *cif);
+#  endif /* HAVE_LONG_DOUBLE */
+#endif /* FFI_CLOSURE_VA_LIST */
 
 /* ---- Definitions shared with assembly code ---------------------------- */
 
