@@ -520,11 +520,14 @@ ffi_closure_va_arg_internal(ffi_cif *cif, ffi_type *va_type, void **va_value,
    * Reference: http://msdn.microsoft.com/en-us/library/zxk0tw93.aspx
    * and: http://msdn.microsoft.com/en-us/library/984x0h58.aspx
    */
+#ifdef X86_WIN32
+  /* FIXME: NOt sure what to do about X86_WIN64 here. */
   if (checkABI
       && (cif->abi == FFI_STDCALL || cif->abi == FFI_THISCALL
           || cif->abi == FFI_FASTCALL)) {
     return FFI_BAD_ABI;
   }
+#endif
 
   /* Align if necessary */
   if ((sizeof(void*) - 1) & (size_t) cif->va.stack) {
