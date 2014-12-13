@@ -20,6 +20,9 @@ Bug Fixes
 * [#319](https://github.com/twall/jna/pull/319): Fix direct-mapping type-mapped pointer result types - [@marco2357](https://github.com/marco2357).
 * Added Variant and TlbImp Fixes - [@wolftobias](https://github.com/wolftobias).
 
+4.1.0-variadic
+* Folded in D. Hogan's changes that support variadic callbacks.  These are needed for the Java interface to the Functional Mock-up Interface (FMI).  These changes have not been offered as a pull request to the primary jna tree and are not likely to be pushed because they involve libffi and the libffi maintainers are not interested in this change.  The changes are available at https://github.com/cxbrooks/jna.  See http://chess.eecs.berkeley.edu/ptexternal/wiki/Main/JNA#PatchJNAToWorkWithVarargsCallBacks
+
 Release 4.1
 ===========
 
